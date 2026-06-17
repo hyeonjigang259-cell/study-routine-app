@@ -55,7 +55,6 @@ h1{margin:0 0 10px 0;}
     border:none;
     border-radius:10px;
     cursor:pointer;
-    font-weight: bold;
 }
 
 .start{background:#22c55e;color:white;}
@@ -75,7 +74,6 @@ h1{margin:0 0 10px 0;}
     height:100%;
     width:0%;
     background:#22c55e;
-    transition: width 0.2s linear;
 }
 
 canvas{margin-top:20px;}
@@ -107,29 +105,29 @@ canvas{margin-top:20px;}
 </div>
 
 <script>
-const examDate = new Date("2026-11-19"); 
+
+const examDate = new Date("2026-11-19"); // 수능 기준 (필요시 수정)
 
 function updateDday(){
     const now = new Date();
-    const diff = Math.ceil((examDate - now) / (1000 * 60 * 60 * 24));
+    const diff = Math.ceil((examDate-now)/(1000*60*60*24));
     document.getElementById("dday").innerText = "D-" + diff;
 }
 updateDday();
 
 const phases=[
-    ["국어",80],
-    ["휴식",10],
-    ["논술",40],
-    ["휴식",10],
-    ["사탐",40],
-    ["휴식",10],
-    ["영어",20]
+["국어",80],
+["휴식",10],
+["논술",40],
+["휴식",10],
+["사탐",40],
+["휴식",10],
+["영어",20]
 ];
 
 let idx=0;
 let remain=phases[0][1]*60;
 let iv=null;
-let chartInstance = null; // 차트 객체 전역 관리
 
 function render(){
     document.getElementById("stage").innerText = phases[idx][0];
@@ -142,29 +140,19 @@ function render(){
     document.getElementById("fill").style.width=percent+"%";
 }
 
-// 실제 공부한 시간(초 단위)을 계산하여 분(minute)으로 저장
-function saveStudy(){
-    let totalSeconds = phases[idx][1] * 60;
-    let elapsedSeconds = totalSeconds - remain;
-    let elapsedMinutes = elapsedSeconds / 60;
-
-    if(elapsedMinutes <= 0) return;
-
-    let today = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD 포맷 안전 보장
-    let data = JSON.parse(localStorage.getItem("study")||"{}");
-    data[today] = Math.round(((data[today]||0) + elapsedMinutes) * 10) / 10; // 소수점 첫째자리까지 합산
+function saveStudy(minutes){
+    let today=new Date().toISOString().slice(0,10);
+    let data=JSON.parse(localStorage.getItem("study")||"{}");
+    data[today]=(data[today]||0)+minutes;
     localStorage.setItem("study",JSON.stringify(data));
-    
-    updateChart(); // 데이터 저장 후 차트 새로고침
 }
 
 function next(){
-    pause(); // 타이머를 먼저 정지시켜 버그 방지
-    saveStudy(); // 진행된 만큼만 공부 시간 기록
+    saveStudy(phases[idx][1]);
 
     idx++;
-    if(idx >= phases.length){
-        alert("오늘 루틴 완료! 수고하셨습니다.");
+    if(idx>=phases.length){
+        alert("오늘 루틴 완료!");
         idx=0;
     }
     remain=phases[idx][1]*60;
@@ -176,60 +164,35 @@ function start(){
     iv=setInterval(()=>{
         remain--;
         render();
-        if(remain<=0) {
-            next();
-        }
+        if(remain<=0) next();
     },1000);
 }
 
-function pause(){
-    if(iv) {
-        clearInterval(iv);
-        iv=null;
-    }
-}
+function pause(){clearInterval(iv);iv=null;}
 
-/* 차트 생성 및 업데이트 함수 */
-function updateChart(){
-    const raw=JSON.parse(localStorage.getItem("study")||"{}");
-    const labels=Object.keys(raw).sort().slice(-7); // 날짜 순 정렬 후 최근 7일
-    const values=labels.map(x=>raw[x]);
-
-    if(chartInstance) {
-        chartInstance.data.labels = labels;
-        chartInstance.data.datasets[0].data = values;
-        chartInstance.update();
-    } else {
-        chartInstance = new Chart(document.getElementById("chart"),{
-            type:"line",
-            data:{
-                labels,
-                datasets:[{
-                    label:"일일 공부시간(분)",
-                    data:values,
-                    borderColor:"#22c55e",
-                    backgroundColor:"rgba(34, 197, 94, 0.1)",
-                    fill: true,
-                    tension: 0.2
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    y: { beginAtZero: true }
-                }
-            }
-        });
-    }
-}
-
-// 초기 실행
 render();
-updateChart();
+
+/* chart */
+const raw=JSON.parse(localStorage.getItem("study")||"{}");
+const labels=Object.keys(raw).slice(-7);
+const values=labels.map(x=>raw[x]);
+
+new Chart(document.getElementById("chart"),{
+    type:"line",
+    data:{
+        labels,
+        datasets:[{
+            label:"일일 공부시간(분)",
+            data:values,
+            borderColor:"#22c55e"
+        }]
+    }
+});
 
 if('serviceWorker' in navigator){
-    navigator.serviceWorker.register('service-worker.js');
+navigator.serviceWorker.register('service-worker.js');
 }
+
 </script>
 
 </body>
