@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>수능 올인 루틴</title>
+
+<link rel="manifest" href="manifest.json">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body{
+    margin:0;
+    font-family:system-ui, -apple-system, sans-serif;
+    background:#0f172a;
+    color:white;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    min-height:100vh;
+}
+
+.container{
+    width:min(800px,92%);
+    background:#111827;
+    padding:30px;
+    border-radius:20px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.4);
+}
+
+h1{margin:0 0 10px 0;}
+
+.sub{color:#94a3b8;margin-bottom:20px;}
+
+.dday{
+    font-size:20px;
+    color:#fbbf24;
+    margin-bottom:20px;
+}
+
+.stage{
+    font-size:28px;
+    font-weight:700;
+}
+
+.timer{
+    font-size:64px;
+    font-weight:900;
+    margin:20px 0;
+}
+
+.buttons button{
+    margin:5px;
+    padding:10px 16px;
+    border:none;
+    border-radius:10px;
+    cursor:pointer;
+    font-weight: bold;
+}
+
+.start{background:#22c55e;color:white;}
+.pause{background:#ef4444;color:white;}
+.next{background:#3b82f6;color:white;}
+
+.bar{
+    width:100%;
+    height:12px;
+    background:#1f2937;
+    border-radius:999px;
+    overflow:hidden;
+    margin:15px 0;
+}
+
+.fill{
+    height:100%;
+    width:0%;
+    background:#22c55e;
+    transition: width 0.2s linear;
+}
+
+canvas{margin-top:20px;}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>수능 올인 루틴</h1>
+<div class="sub">80 → 10 → 40 → 10 → 40 → 10 → 20</div>
+
+<div class="dday" id="dday"></div>
+
+<div class="stage" id="stage"></div>
+<div class="timer" id="timer">00:00</div>
+
+<div class="bar"><div class="fill" id="fill"></div></div>
+
+<div class="buttons">
+<button class="start" onclick="start()">시작</button>
+<button class="pause" onclick="pause()">정지</button>
+<button class="next" onclick="next()">다음</button>
+</div>
+
+<canvas id="chart"></canvas>
+
+</div>
+
+<script>
+const examDate = new Date("2026-11-19"); 
+
+function updateDday(){
+    const now = new Date();
+    const diff = Math.ceil((examDate - now) / (1000 * 60 * 60 * 24));
+    document.getElementById("dday").innerText = "D-" + diff;
+}
+updateDday();
+
+const phases=[
+    ["국어",80],
+    ["휴식",10],
+    ["논술",40],
+    ["휴식",10],
+    ["사탐",40],
+    ["휴식",10],
+    ["영어",20]
+];
+
+let idx=0;
+let remain=phases[0][1]*60;
+let iv=null;
+let chartInstance = null; // 차트 객체 전역 관리
+
+function render(){
+    document.getElementById("stage").innerText = phases[idx][0];
+    let m=Math.floor(remain/60), s=remain%60;
+    document.getElementById("timer").innerText =
+    String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
+
+    let total=phases[idx][1]*60;
+    let percent = ((total-remain)/total)*100;
+    document.getElementById("fill").style.width=percent+"%";
+}
+
+// 실제 공부한 시간(초 단위)을 계산하여 분(minute)으로 저장
+function saveStudy(){
+    let totalSeconds = phases[idx][1] * 60;
+    let elapsedSeconds = totalSeconds - remain;
+    let elapsedMinutes = elapsedSeconds / 60;
+
+    if(elapsedMinutes <= 0) return;
+
+    let today = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD 포맷 안전 보장
+    let data = JSON.parse(localStorage.getItem("study")||"{}");
+    data[today] = Math.round(((data[today]||0) + elapsedMinutes) * 10) / 10; // 소수점 첫째자리까지 합산
+    localStorage.setItem("study",JSON.stringify(data));
+    
+    updateChart(); // 데이터 저장 후 차트 새로고침
+}
+
+function next(){
+    pause(); // 타이머를 먼저 정지시켜 버그 방지
+    saveStudy(); // 진행된 만큼만 공부 시간 기록
+
+    idx++;
+    if(idx >= phases.length){
+        alert("오늘 루틴 완료! 수고하셨습니다.");
+        idx=0;
+    }
+    remain=phases[idx][1]*60;
+    render();
+}
+
+function start(){
+    if(iv) return;
+    iv=setInterval(()=>{
+        remain--;
+        render();
+        if(remain<=0) {
+            next();
+        }
+    },1000);
+}
+
+function pause(){
+    if(iv) {
+        clearInterval(iv);
+        iv=null;
+    }
+}
+
+/* 차트 생성 및 업데이트 함수 */
+function updateChart(){
+    const raw=JSON.parse(localStorage.getItem("study")||"{}");
+    const labels=Object.keys(raw).sort().slice(-7); // 날짜 순 정렬 후 최근 7일
+    const values=labels.map(x=>raw[x]);
+
+    if(chartInstance) {
+        chartInstance.data.labels = labels;
+        chartInstance.data.datasets[0].data = values;
+        chartInstance.update();
+    } else {
+        chartInstance = new Chart(document.getElementById("chart"),{
+            type:"line",
+            data:{
+                labels,
+                datasets:[{
+                    label:"일일 공부시간(분)",
+                    data:values,
+                    borderColor:"#22c55e",
+                    backgroundColor:"rgba(34, 197, 94, 0.1)",
+                    fill: true,
+                    tension: 0.2
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    }
+}
+
+// 초기 실행
+render();
+updateChart();
+
+if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('service-worker.js');
+}
+</script>
+
+</body>
+</html>
