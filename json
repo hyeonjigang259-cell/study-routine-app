@@ -1,0 +1,8 @@
+{
+"name":"수험생 공부 루틴",
+"short_name":"공부루틴",
+"start_url":"./index.html",
+"display":"standalone",
+"background_color":"#ffffff",
+"theme_color":"#ffffff"
+}
